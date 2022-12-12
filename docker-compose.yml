@@ -1,0 +1,16 @@
+version: "3"
+services:
+  postgres:
+    image: postgres:15.1
+    container_name: bakery-backend-postgres
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_USERNAME: "${POSTGRES_USER_NAME}"
+      POSTGRES_PASSWORD: "${POSTGRES_USER_PASSWORD}"
+      POSTGRES_DATABASE: "${POSTGRES_DATABASE_NAME}"
+    volumes:
+      - "postgres:${POSTGRES_CONTAINER_DATA}"
+
+volumes:
+  postgres:
