@@ -11,54 +11,92 @@ async fn run(postgres_url: &str, database_name: &str) -> Result<(), DbErr> {
     let url = format!("{}/{}", postgres_url, database_name);
     let db = Database::connect(&url).await?;
 
+    basic_crud_operations(&db).await?;
+    relationship_select(db).await?;
+
+    Ok(())
+}
+
+async fn basic_crud_operations(db: &DatabaseConnection) -> Result<(), DbErr> {
     let happy_bakery = bakery::ActiveModel {
         name: ActiveValue::Set(String::from("Happy Bakery")),
         profit_margin: ActiveValue::Set(0.0),
         ..Default::default()
     };
-    let result = Bakery::insert(happy_bakery).exec(&db).await?;
+    let bakery_result = Bakery::insert(happy_bakery).exec(db).await?;
 
     let sad_bakery = bakery::ActiveModel {
-        id: ActiveValue::Set(result.last_insert_id),
+        id: ActiveValue::Set(bakery_result.last_insert_id),
         name: ActiveValue::Set(String::from("Sad Bakery")),
         profit_margin: ActiveValue::NotSet,
     };
-    sad_bakery.update(&db).await?;
+    sad_bakery.update(db).await?;
 
     let john = chef::ActiveModel {
         name: ActiveValue::Set(String::from("John")),
-        bakery_id: ActiveValue::Set(result.last_insert_id),
+        bakery_id: ActiveValue::Set(bakery_result.last_insert_id),
         ..Default::default()
     };
-    Chef::insert(john).exec(&db).await?;
+    let chef_result = Chef::insert(john).exec(db).await?;
 
-    let bakeries = Bakery::find().all(&db).await?;
+    let bakeries = Bakery::find().all(db).await?;
     assert_eq!(bakeries.len(), 1);
 
-    let sad_bakery = Bakery::find_by_id(1).one(&db).await?;
-    assert_eq!(sad_bakery.unwrap().id, 1);
+    let sad_bakery = Bakery::find_by_id(bakery_result.last_insert_id)
+        .one(db)
+        .await?;
+    assert_eq!(sad_bakery.unwrap().id, bakery_result.last_insert_id);
 
     let sad_bakery = Bakery::find()
         .filter(bakery::Column::Name.eq("Sad Bakery"))
-        .one(&db)
+        .one(db)
         .await?;
-    assert_eq!(sad_bakery.unwrap().id, 1);
+    assert_eq!(sad_bakery.unwrap().id, bakery_result.last_insert_id);
 
     let john = chef::ActiveModel {
-        id: ActiveValue::Set(1),
+        id: ActiveValue::Set(chef_result.last_insert_id),
         ..Default::default()
     };
-    john.delete(&db).await?;
+    john.delete(db).await?;
 
     let sad_bakery = bakery::ActiveModel {
-        id: ActiveValue::Set(1),
+        id: ActiveValue::Set(bakery_result.last_insert_id),
         ..Default::default()
     };
-    sad_bakery.delete(&db).await?;
+    sad_bakery.delete(db).await?;
 
-    let bakeries = Bakery::find().all(&db).await?;
+    let bakeries = Bakery::find().all(db).await?;
     assert!(bakeries.is_empty());
 
+    Ok(())
+}
+
+async fn relationship_select(db: DatabaseConnection) -> Result<(), DbErr> {
+    let la_boulangerie = bakery::ActiveModel {
+        name: ActiveValue::Set(String::from("La Boulangerie")),
+        profit_margin: ActiveValue::Set(0.0),
+        ..Default::default()
+    };
+    let bakery_result = Bakery::insert(la_boulangerie).exec(&db).await?;
+    for chef_name in ["Jolie", "Charles", "Madeleine", "Frederic"] {
+        let chef = chef::ActiveModel {
+            name: ActiveValue::Set(chef_name.to_string()),
+            bakery_id: ActiveValue::Set(bakery_result.last_insert_id),
+            ..Default::default()
+        };
+        Chef::insert(chef).exec(&db).await?;
+    }
+    let la_boulangerie = Bakery::find_by_id(bakery_result.last_insert_id)
+        .one(&db)
+        .await?
+        .unwrap();
+    let chefs = la_boulangerie.find_related(Chef).all(&db).await?;
+    let mut chef_names: Vec<String> = chefs.into_iter().map(|c| c.name).collect();
+    chef_names.sort_unstable();
+    assert_eq!(
+        chef_names,
+        vec!["Charles", "Frederic", "Jolie", "Madeleine"]
+    );
     Ok(())
 }
 
