@@ -8,6 +8,7 @@ dotenvy = "0.15"
 sea-orm = { version = "0.10", features = [
     "sqlx-postgres",
     "runtime-tokio-native-tls",
-    "macros"
+    "macros",
+    "mock"
 ] }
 tokio = { version = "1.23", features = ["rt", "macros"] }
