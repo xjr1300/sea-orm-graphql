@@ -4,3 +4,5 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+features = "0.10"
+sea-orm = { version = "0.10", features = ["sqlx-postgres", "tokio", "macros"] }
