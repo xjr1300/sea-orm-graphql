@@ -1,7 +1,7 @@
 use std::env;
 
 use dotenvy::dotenv;
-use sea_orm::{ActiveValue, Database, DbErr, *};
+use sea_orm::{sea_query::PostgresQueryBuilder, ActiveValue, Database, DbErr, *};
 
 mod entities;
 
@@ -16,6 +16,7 @@ async fn run(postgres_url: &str, database_name: &str) -> Result<(), DbErr> {
     basic_crud_operations(&db).await?;
     relationship_select(&db).await?;
     test_with_mock().await?;
+    build_sea_queries(&db).await?;
 
     Ok(())
 }
@@ -238,6 +239,53 @@ async fn test_with_mock() -> Result<(), DbErr> {
     Ok(())
 }
 
+async fn build_sea_queries(db: &DatabaseConnection) -> Result<(), DbErr> {
+    use sea_query::{Alias, Expr, Query};
+
+    let columns: Vec<Alias> = ["name", "profit_margin"]
+        .into_iter()
+        .map(Alias::new)
+        .collect();
+    let mut stmt = Query::insert();
+    stmt.into_table(bakery::Entity).columns(columns);
+
+    stmt.values_panic(["SQL Bakery".into(), (-100.0).into()]);
+
+    let builder = db.get_database_backend();
+    db.execute(builder.build(&stmt)).await?;
+
+    let bakery = Bakery::find()
+        .filter(bakery::Column::Name.eq("SQL Bakery"))
+        .one(db)
+        .await?;
+    assert!(bakery.is_some());
+
+    let column = (chef::Entity, Alias::new("name"));
+    let mut stmt = Query::select();
+    stmt.column(column.clone())
+        .from(chef::Entity)
+        .join(
+            JoinType::Join,
+            bakery::Entity,
+            Expr::tbl(chef::Entity, Alias::new("bakery_id"))
+                .equals(bakery::Entity, Alias::new("id")),
+        )
+        .order_by(column, Order::Asc);
+
+    let builder = db.get_database_backend();
+    let chef = ChefNameResult::find_by_statement(builder.build(&stmt))
+        .all(db)
+        .await?;
+    let chef_names = chef.into_iter().map(|c| c.name).collect::<Vec<_>>();
+    assert_eq!(
+        chef_names,
+        vec!["Charles", "Frederic", "Jolie", "Madeleine"]
+    );
+    println!("{}", stmt.to_string(PostgresQueryBuilder));
+
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() {
     dotenv().expect(".env file not found");
@@ -248,4 +296,9 @@ async fn main() {
     if let Err(e) = run(&postgres_url, &database_name).await {
         panic!("{}", e);
     }
+}
+
+#[derive(FromQueryResult)]
+struct ChefNameResult {
+    name: String,
 }
