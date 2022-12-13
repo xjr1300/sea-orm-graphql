@@ -3,7 +3,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 use actix_web::{guard, web, App, HttpResponse, HttpServer};
 use async_graphql::http::{playground_source, GraphQLPlaygroundConfig};
-use async_graphql::{EmptyMutation, EmptySubscription, Schema};
+use async_graphql::{EmptySubscription, Schema};
 use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse};
 use dotenvy::dotenv;
 use sea_orm::{sea_query::PostgresQueryBuilder, ActiveValue, Database, DbErr, *};
@@ -12,9 +12,9 @@ mod entities;
 mod schema;
 
 use entities::{prelude::*, *};
-use schema::QueryRoot;
+use schema::{MutationRoot, QueryRoot};
 
-type SchemaType = Schema<QueryRoot, EmptyMutation, EmptySubscription>;
+type SchemaType = Schema<QueryRoot, MutationRoot, EmptySubscription>;
 
 async fn run_sea_orm(conn: &DatabaseConnection) -> Result<(), DbErr> {
     delete_records(conn).await?;
@@ -325,7 +325,7 @@ async fn main() -> anyhow::Result<()> {
 
     // GraphQLサーバーを起動
     let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8000);
-    let schema = Schema::build(QueryRoot, EmptyMutation, EmptySubscription)
+    let schema = Schema::build(QueryRoot, MutationRoot, EmptySubscription)
         .data(conn)
         .finish();
 
