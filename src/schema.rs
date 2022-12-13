@@ -1,5 +1,5 @@
-use async_graphql::Context;
-use sea_orm::{DatabaseConnection, DbErr, EntityTrait};
+use async_graphql::{ComplexObject, Context};
+use sea_orm::{DatabaseConnection, DbErr, EntityTrait, ModelTrait};
 
 use crate::entities::{prelude::*, *};
 
@@ -21,5 +21,14 @@ impl QueryRoot {
         let conn = ctx.data::<DatabaseConnection>().unwrap();
 
         Bakery::find_by_id(id).one(conn).await
+    }
+}
+
+#[ComplexObject]
+impl bakery::Model {
+    async fn chefs(&self, ctx: &Context<'_>) -> Result<Vec<chef::Model>, DbErr> {
+        let conn = ctx.data::<DatabaseConnection>().unwrap();
+
+        self.find_related(Chef).all(conn).await
     }
 }
