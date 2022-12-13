@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+actix-web = { version = "4.2", default-features = false, features = ["macros"] }
+anyhow = "1.0"
+async-graphql = "5.0"
+async-graphql-actix-web = "5.0"
 dotenvy = "0.15"
 sea-orm = { version = "0.10", features = [
     "sqlx-postgres",
